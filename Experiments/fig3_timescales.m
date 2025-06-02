@@ -1,36 +1,34 @@
-%% 3A. Stimulus evoked response of Model I and Model II with one FNP, optimal stimulus
+%% Simulate geometric and hybrid response, optimal stimulus
+% hybrid connectivity has one FNP
 
 clear; clc;
+% Load model parameters
 loadparam;
 
-% Optimal stimulation
+% Optimal stimulation (stimulus placed at source of FNP)
 stim.stimR = hetparam_het.a;
 
-%stim.sigma(2) = stim.sigma(2)*0.;
-
+% Compute timestep and grid spacing
 dx = topology.L / topology.Nx;
 dt = topology.T / topology.Nt;
 
+% Compute geometric and hybrid response
 ts_full = zeros(topology.Nx, topology.Nx, topology.Nt, 2);
 ts_full(:, :, :, 1) = run_periodic(topology,homparam,hetparam_hom,stim);
 ts_full(:, :, :, 2) = run_periodic(topology,homparam,hetparam_het,stim);
 
+% Create tilelayout figure and properties
+fig = figure;
+fig.Position = [100, 100, 1400, 410];
 maxval = 650;
 timepoints = [-0.00133, 0.005, 0.01, 0.02, 0.03, 0.05];
 num_snapshots = length(timepoints);
-
 Colormap = [linspace(1, 1, 256)' linspace(1, 0, 256)', linspace(1, 0, 256)'];
-
-f = figure;
-f.Position = [100, 100, 1400, 410];
-
 num_subcols = 5;
 num_subrows = 10;
 tot_subcols = 4+num_subcols*(1+num_snapshots);
 tot_subrows = 2+num_subrows*2;
-
 t = tiledlayout(tot_subrows,tot_subcols,"TileSpacing", "tight", "Padding", "compact");
-
 modeltitles = "\textbf{" + ["Geometric", "Hybrid"] + "}";
 stimulustitles = "\textbf{" + ["i", "ii"] + ".}";
 responsetitles = "\textbf{" + ["iii", "iv"] + ".}";
@@ -41,6 +39,7 @@ for i = 2:num_snapshots
     coltitles(i+1) = append("$t = ", num2str(1000*timepoints(i)), "\ \mathrm{ms}$");
 end
 
+% Plot evoked responses
 for iter = 1:2
     ts = squeeze(ts_full(:, :, :, iter));
     % Label Connectivities
@@ -61,7 +60,7 @@ for iter = 1:2
     ax.Box = "on";
     ax.LineWidth = 2;
     set(gca, 'color', 'white');
-    % Draw FNP in Model II
+    % Draw FNP in hybrid connectivity
     if iter == 2
         quiver(hetparam_het.a(1), hetparam_het.a(2), ...
         hetparam_het.b(1) - hetparam_het.a(1), ...
@@ -103,9 +102,6 @@ for iter = 1:2
         ax.LineWidth = 1;
         imagesc(dx*(1:topology.Nx), dx*(1:topology.Nx), ts(:,:,ceil((stim.stimt + timepoints(i)) / dt))');
         set(ax,'YDir','normal');
-        if iter == 1 && i == 1
-            text(topology.L - 0.01, 0, "$\Omega$", 'Interpreter', 'latex', 'Color', 'k', 'HorizontalAlignment','right','VerticalAlignment','bottom', 'FontSize', 15);
-        end
         colormap(ax, Colormap);
         shading flat;
         clim([0 maxval]);
@@ -139,49 +135,47 @@ for iter = 1:2
     'LineWidth', 2, 'Color', 'k');
 end
 
-% save as snapshotsdefaultoptimal.svg
-print(gcf, 'snapshotsdefaultoptimal.svg', '-dsvg');
-exportgraphics(gcf, 'snapshotsdefaultoptimal.tiff', 'Resolution', 300);
+% save as snapshotsdefaultoptimal.tiff
+exportgraphics(gcf, '3_snapshotsdefaultoptimal.tiff', 'Resolution', 300);
+close(fig);
 
-%% 3B. Plot dissimilarity of default model over time, optimal stimulus
+%% Plot dissimilarity of default model over time, optimal stimulus
 
 clear; clc;
+% Load model parameters
 loadparam;
 
-%Optimal Stimulation
+% Optimal Stimulation (stimulus placed at source of FNP)
 stim.stimR = hetparam_het.a;
 
+% Compute timestep and grid spacing
 dx = topology.L / topology.Nx;
 dt = topology.T / topology.Nt;
 
-time_array = dt * (1:topology.Nt);
-
+% Compute geometric and hybrid response
 ts_hom = run_periodic(topology,homparam,hetparam_hom,stim);
 ts_het = run_periodic(topology,homparam,hetparam_het,stim);
 
+% Compute the dissimilarity between geometric and hybrid response
 dissim_time = zeros(1, topology.Nt);
 for n = 1:topology.Nt
     dissim_time(n) = pdist2(...
         reshape(ts_hom(:, :, n), [], 1)', reshape(ts_het(:, :, n), [], 1)', 'cosine');
 end
 
-
-% Plot divergence of default model and random models on same plot
-
-f = figure;
-f.Position = [100, 100, 1400, 500];
+% Create figure
+fig = figure;
+fig.Position = [100, 100, 1400, 500];
 hold;
 
-% Optimal Stimulation
-plot(1000*(time_array - stim.stimt), dissim_time', 'Color', 'k', 'LineWidth', 2);
-
+% Plot dissimilarity
+plot(1000*(dt * (1:topology.Nt) - stim.stimt), dissim_time', 'Color', 'k', 'LineWidth', 2);
 ylim([0, 0.09]);
 xlim([-5, Inf]);
 xticks([0:10:40]);
 yticks([0:0.02:1]);
 xlabel("$t \ (\mathrm{ms})$", 'Interpreter', 'latex');
 ylabel('$C_{\phi}$', 'Interpreter', 'latex', 'Rotation', 0)
-
 ax = gca;
 ax.TickLabelInterpreter = 'latex';
 ax.XAxis.FontSize = 14;
@@ -189,13 +183,14 @@ ax.YAxis.FontSize = 14;
 ax.XAxis.LabelFontSizeMultiplier  = 1.5;
 ax.YAxis.LabelFontSizeMultiplier  = 2;
 
-% save as dissimcurveoptimal.svg
-print(gcf, 'dissimcurveoptimal.svg', '-dsvg');
-exportgraphics(gcf, 'dissimcurveoptimal.tiff', 'Resolution', 300);
+% save as dissimcurveoptimal.tiff
+exportgraphics(gcf, '3_dissimcurveoptimal.tiff', 'Resolution', 300);
+close(fig);
 
-%% 3C. Plot temporal response at intermediate points
+%% Plot temporal response at intermediate points r1 and r2
 
 clear; clc;
+% Load model parameters
 loadparam;
 
 % Optimal stimulation
@@ -204,49 +199,46 @@ stim.stimR = hetparam_het.a;
 dx = topology.L / topology.Nx;
 dt = topology.T / topology.Nt;
 
-time_array = dt * (1:topology.Nt);
-
+% Define coordinates of r1, r2
 positions = [0.175, 0.225];
 num_positions = length(positions);
 positions_grid = round(positions/dx);
 positiontexts = "\mathbf{r}_" + string(1:num_positions);
 
-Titles = "\textbf{" + ["i", "ii"] + ".}";
-Legend = "\textbf{" + ["Geometric Connectivity \hspace{10pt}", "Hybrid Connectivity"] + "}";
-
-
-f = figure;
-f.Position = [0 100 1350 440];
-
-num_subcols = 4;
-tiledlayout(1, 2, 'TileSpacing', 'Compact', 'Padding', 'Compact');
-
+% Compute geometric and hybrid response
 ts_hom = run_periodic(topology, homparam, hetparam_hom, stim);
 ts_het = run_periodic(topology, homparam, hetparam_het, stim);
 
+% Create figure and properties
+fig = figure;
+fig.Position = [0 100 1350 440];
+Titles = "\textbf{" + ["i", "ii"] + ".}";
+Legend = "\textbf{" + ["Geometric Connectivity \hspace{10pt}", "Hybrid Connectivity"] + "}";
+num_subcols = 4;
+tiledlayout(1, 2, 'TileSpacing', 'Compact', 'Padding', 'Compact');
+
+% Plot geometric and hybrid response at r1, r2
 for iter = 1:num_positions
     ax = nexttile(iter);
     hold on;
     ax.TickLabelInterpreter = 'latex';
-    plot(1000*(time_array - stim.stimt), reshape(ts_hom(positions_grid(iter), positions_grid(iter), :), 1, []), ...
-        'LineStyle','-', 'LineWidth', 1, 'Color', 'Black');
-    plot(1000*(time_array - stim.stimt), reshape(ts_het(positions_grid(iter), positions_grid(iter), :), 1, []), ...
-        'LineStyle','-', 'LineWidth', 3, 'Color', 'Black');
+    % Plot
+    plot(1000*(dt * (1:topology.Nt) - stim.stimt), reshape(ts_hom(positions_grid(iter), positions_grid(iter), :), 1, []), ...
+        'LineStyle','-', 'LineWidth', 2, 'Color', 'b');
+    plot(1000*(dt * (1:topology.Nt) - stim.stimt), reshape(ts_het(positions_grid(iter), positions_grid(iter), :), 1, []), ...
+        'LineStyle','-', 'LineWidth', 2, 'Color', [0 0.5 0]);
     xlim([-5, Inf]);
     xticks([0:10:40]);
     title(Titles(iter), 'Interpreter', 'latex', 'FontSize', 24);
     ax.TitleHorizontalAlignment = 'left';
     text(0.9, 1, append("$\phi(",num2str(positiontexts(iter)),", t)$"), 'Interpreter', 'latex', 'HorizontalAlignment', 'right', 'VerticalAlignment', 'top', 'FontSize', 20, 'Units', 'normalized');
     xlabel("$t \ (\mathrm{ms})$", 'Interpreter', 'latex');
-    % ylabel(append("$\phi(",num2str(positiontexts(iter)),", t)$"), 'Interpreter', 'latex', 'Rotation', 0);
     ylabel(append("$\phi$"), 'Interpreter', 'latex', 'Rotation', 0);
     ax.YAxis.Exponent = 0;
     ax.XAxis.FontSize = 10;
     ax.YAxis.FontSize = 10;
     ax.LabelFontSizeMultiplier  = 1.6;
-    % if iter == 1
-    %     ylim([-Inf, 7000]);
-    % end
+    % Plot vertical lines showing when the waves reach intermediate points
     if iter == 1
         xline(1000*0.025*sqrt(2) / (homparam.r * homparam.gamma), 'r', 'LineWidth', 1, 'LineStyle', '-');
         xline(1000*0.075*sqrt(2) / (homparam.r * homparam.gamma), 'r', 'LineWidth', 1, 'LineStyle', '--');
@@ -258,15 +250,16 @@ for iter = 1:num_positions
     hold off;
 end
 
+% Legend
 l = legend(Legend, 'Interpreter', 'latex', 'Orientation', 'Vertical', 'FontSize', 16, 'Box', 'off');
 l.Layout.Tile = 'south';
 l.Orientation = 'horizontal';
 
-% save as temporalresponsedefault.svg
-print(gcf, 'temporalresponsedefault.svg', '-dsvg');
-exportgraphics(gcf, 'temporalresponsedefault.tiff', 'Resolution', 300);
+% save as temporalresponseoptimal.tiff
+exportgraphics(gcf, '3_temporalresponseoptimal.tiff', 'Resolution', 300);
+close(fig);
 
-%% Plot positions of r1 and r2
+%% Plot positions of r1 and r2 on Omega, to complement previous subfigure
 
 clear; clc;
 loadparam;
@@ -277,8 +270,8 @@ positiontexts = "\mathbf{r}_" + string(1:num_positions);
 
 for iter = 1:num_positions
 
-    f = figure;
-    f.Position = [0 100 210 200];
+    fig = figure;
+    fig.Position = [0 100 210 200];
 
     ax = gca;
     hold on;
@@ -301,13 +294,8 @@ for iter = 1:num_positions
     
     hold off;
 
-    % save as filename
-    if iter == 1
-        filename = 'r1';
-    else
-        filename = 'r2';
-    end
-    print(gcf, append(filename,'schematic.svg'), '-dsvg');
-    exportgraphics(gcf, append(filename,'schematic.tiff'), 'Resolution', 300);
+    % save as r1schematic.tiff, r2schematic.tiff
+    exportgraphics(gcf, append('3_r',num2str(iter),'schematic.tiff'), 'Resolution', 300);
+    close(fig);
 
 end

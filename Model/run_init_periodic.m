@@ -1,5 +1,6 @@
 function ts = run_init_periodic(topology,homparam,hetparam,stim,init)
-%RUN with Initial Conditions, or zero trivial conditions if init = NaN;
+% RUN with Initial Conditions, or zero trivial conditions if init = NaN;
+% Periodic boundary conditions
 
 % Takes in input of model parameters, timesteps and lengthsteps.
 % Returns timeseries at each point.

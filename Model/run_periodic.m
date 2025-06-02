@@ -1,5 +1,6 @@
 function ts = run_periodic(topology,homparam,hetparam,stim)
-%RUN with ZERO TRIVIAL CONDITIONS: phi(r,0) = phi_t(r,0) = 0;
+% RUN with ZERO TRIVIAL CONDITIONS: phi(r,0) = phi_t(r,0) = 0;
+% Periodic boundary conditions
 
 % Takes in input of model parameters, timesteps and lengthsteps.
 % Returns timeseries at each point.

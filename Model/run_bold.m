@@ -37,6 +37,10 @@ function [ts_bold] = run_bold(topology, homparam, hetparam, stim, tol)
 % Outputs
     %   ts_bold: Nx x Ny array containing ts_bold(r)
 
+if nargin < 5 || isempty(tol)
+    tol = 1e-5;
+end
+
 dt = topology.T / topology.Nt;
 dx = topology.L / topology.Nx;
 
