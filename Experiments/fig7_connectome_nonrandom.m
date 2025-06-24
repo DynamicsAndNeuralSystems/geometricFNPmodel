@@ -52,7 +52,7 @@ end
 
 % Create tiledlayout figure
 fig = figure;
-fig.Position = [100, 100, 1400, 175];
+fig.Position = [100, 100, 1390, 175];
 set(gca,'Color','white')
 box on;
 t = tiledlayout(1, 28, 'TileSpacing', 'none', 'Padding', 'compact');
@@ -95,7 +95,7 @@ for j = 1:3
         end
         
         %Labels and titles
-        xlabel(append('$\', lambda_names(j), ' = ', num2str(lambda), '$'), 'Interpreter', 'latex', 'FontSize', 16);
+        xlabel(append('$\', lambda_names(j), ' = ', num2str(lambda_array(i)), '$'), 'Interpreter', 'latex', 'FontSize', 16);
 
         if i == 2
             t1 = title(property_names(j), 'Interpreter', 'latex', 'FontSize', 16);
@@ -129,7 +129,7 @@ end
 exportgraphics(gcf, '7_schematic_nonrandom.tiff', 'Resolution', 300);
 close(fig);
 
-%% BOLD dissimilarity of random connectomes
+%% Max dissimilarity of random connectomes
 
 clear; clc;
 
@@ -140,17 +140,14 @@ N_array = [10, 20, 50, 100];
 max_N = max(N_array);
 
 % Set number samples - Change for 100 for figures in paper
-num_samples = 10;
-
-% Set tolerance for computing bold response
-tol = 1e-5;
+num_samples = 200;
 
 % Sample Stimulus Position
 rng(0, "twister");
 stim_positions = topology.L * rand(2, num_samples);
 
 % Record BOLD dissimilarity
-bold_dissim_array = zeros(length(N_array), num_samples);
+max_dissim_array = zeros(length(N_array), num_samples);
 
 parfor k = 1:num_samples
 
@@ -162,9 +159,12 @@ parfor k = 1:num_samples
     stim1.stimR = stim_positions(:, k);
 
     % Simulate homogeneous model
-    ts_hom_bold = run_bold(topology, homparam, hetparam_hom, stim1, tol);
+    ts_hom = run_periodic(topology, homparam, hetparam_hom, stim1);
 
-    bold_dissim_subarray = zeros(length(N_array), 1);
+    % Initiate dissimcurve array
+    dissimcurve = zeros(1, topology.Nt);
+
+    max_dissim_subarray = zeros(length(N_array), 1);
 
     % Create Random Connectome
     rng(k, "twister");
@@ -188,25 +188,27 @@ parfor k = 1:num_samples
         hetparam_het1.a = a_array(:, 1:N);
         hetparam_het1.b = b_array(:, 1:N);
 
-        ts_het_bold = run_bold(topology, homparam, hetparam_het1, stim1, tol);
+        ts_het = run_periodic(topology, homparam, hetparam_het1, stim1);
 
-        dissim_bold = pdist2(...
-            ts_hom_bold(:)', ts_het_bold(:)', 'cosine');
+        for n = 1:topology.Nt
+            dissimcurve(n) = pdist2(...
+                reshape(ts_hom(:, :, n), [], 1)', reshape(ts_het(:, :, n), [], 1)', 'cosine');
+        end
 
-        bold_dissim_subarray(i) = dissim_bold;
-        disp([i, k, dissim_bold]);
+        dissim_max = max(dissimcurve);
+        max_dissim_subarray(i) = dissim_max;
+        disp([i, k, dissim_max]);
 
     end
 
-    bold_dissim_array(:, k) = bold_dissim_subarray;
+    max_dissim_array(:, k) = max_dissim_subarray;
 
 end
 
-save('dissim_bold_multilrcs.mat', "topology", "N_array", "num_samples", "bold_dissim_array");
+save('dissim_max_multilrcs.mat', "topology", "N_array", "num_samples", "stim_positions", "max_dissim_array");
 
 
-%% BOLD dissimilarity versus EDR decay rate
-% Fix number of shortcuts to 50
+%% Max dissimilarity versus EDR decay rate
 
 clear; clc;
  
@@ -217,10 +219,7 @@ N_array = [10, 20, 50, 100];
 max_N = max(N_array);
 
 % Set number samples - Change to 100 for figures in paper
-num_samples = 10;
-
-% Set tolerance for computing bold responses
-tol = 1e-5;
+num_samples = 200;
 
 % Sample Stimulus Position
 rng(0, "twister");
@@ -231,7 +230,7 @@ lambda_array = 0.2:0.2:1;
  
 
 % Compute BOLD dissimilarity
-bold_dissim_array = zeros(length(lambda_array), length(N_array), num_samples);
+max_dissim_array = zeros(length(lambda_array), length(N_array), num_samples);
 
 parfor k = 1:num_samples
 
@@ -246,9 +245,12 @@ parfor k = 1:num_samples
     stim1.stimR = stim_positions(:, k);
 
     % Simulate homogeneous model
-    ts_hom_bold = run_bold(topology, homparam, hetparam_hom, stim1, tol);
+    ts_hom = run_periodic(topology, homparam, hetparam_hom, stim1);
 
-    bold_dissim_subarray = zeros(length(lambda_array), length(N_array));
+    % Initiate dissimcurve array
+    dissimcurve = zeros(1, topology.Nt);
+
+    max_dissim_subarray = zeros(length(lambda_array), length(N_array));
 
     % Create Random Connectome
     a_array = zeros(2, max_N);
@@ -277,40 +279,40 @@ parfor k = 1:num_samples
             hetparam_het1.a = a_array1(:, 1:N);
             hetparam_het1.b = b_array1(:, 1:N);
     
-            ts_het_bold = run_bold(topology, homparam, hetparam_het1, stim1, tol);
+            ts_het = run_periodic(topology, homparam, hetparam_het1, stim1);
     
-            dissim_bold = pdist2(...
-                ts_hom_bold(:)', ts_het_bold(:)', 'cosine');
-        
-            bold_dissim_subarray(i, j) = dissim_bold;
-            disp(num2str([i, j, k, dissim_bold]));
+            for n = 1:topology.Nt
+                dissimcurve(n) = pdist2(...
+                    reshape(ts_hom(:, :, n), [], 1)', reshape(ts_het(:, :, n), [], 1)', 'cosine');
+            end
+    
+            dissim_max = max(dissimcurve);
+            max_dissim_subarray(i, j) = dissim_max;
+            disp(num2str([i, j, k, dissim_max]));
     
         end
     
-        bold_dissim_array(:, :, k) = bold_dissim_subarray;
+        max_dissim_array(:, :, k) = max_dissim_subarray;
     
     end
 
 end
 %
-save('dissim_bold_edr.mat', "topology", "N_array", "lambda_array", "num_samples", "bold_dissim_array");
-% 
+save('dissim_max_edr.mat', "topology", "N_array", "lambda_array", "num_samples", "stim_positions", "max_dissim_array");
+%
 
-
-%% BOLD dissimilarity versus level of hub specificity
+%% Max dissimilarity versus level of hub specificity
 
 clear; clc;
  
 loadparam;
-
-tol = 1e-5;
 
 % Set number of FNPs
 N_array = [10, 20, 50, 100];
 max_N = max(N_array);
 
 % Set number samples - Change to 100 for figures in paper
-num_samples = 10;
+num_samples = 200;
 
 % Set number of hubs, positions, and dimensions
 num_hubs = 4;
@@ -320,7 +322,7 @@ hublength = topology.L / sqrt(34);
 % Set lambda (level of hub specificity)
 lambda_array = 0.2:0.2:1;
 
-bold_dissim_array = zeros(length(lambda_array), length(N_array), num_samples);
+max_dissim_array = zeros(length(lambda_array), length(N_array), num_samples);
 
 % Sample Stimulus Position
 rng(0, "twister");
@@ -339,9 +341,12 @@ parfor k = 1:num_samples
     stim1.stimR = stim_positions(:, k);
 
     % Simulate homogeneous model
-    ts_hom_bold = run_bold(topology, homparam, hetparam_hom, stim1, tol);
+    ts_hom = run_periodic(topology, homparam, hetparam_hom, stim1);
 
-    bold_dissim_subarray = zeros(length(lambda_array), length(N_array));
+    % Initiate dissimcurve array
+    dissimcurve = zeros(1, topology.Nt);
+    
+    max_dissim_subarray = zeros(length(lambda_array), length(N_array));
 
     % Create Random Connectome
       
@@ -372,39 +377,40 @@ parfor k = 1:num_samples
             hetparam_het1.a = a_array1(:, 1:N);
             hetparam_het1.b = b_array1(:, 1:N);
     
-            ts_het_bold = run_bold(topology, homparam, hetparam_het1, stim1, tol);
+            ts_het = run_periodic(topology, homparam, hetparam_het1, stim1);
     
-            dissim_bold = pdist2(...
-                ts_hom_bold(:)', ts_het_bold(:)', 'cosine');
-        
-            bold_dissim_subarray(i, j) = dissim_bold;
-            disp(num2str([i, j, k, dissim_bold]));
+            for n = 1:topology.Nt
+                dissimcurve(n) = pdist2(...
+                    reshape(ts_hom(:, :, n), [], 1)', reshape(ts_het(:, :, n), [], 1)', 'cosine');
+            end
+    
+            dissim_max = max(dissimcurve);
+            max_dissim_subarray(i, j) = dissim_max;
+            disp(num2str([i, j, k, dissim_max]));
     
         end
     
-        bold_dissim_array(:, :, k) = bold_dissim_subarray;
+        max_dissim_array(:, :, k) = max_dissim_subarray;
     
     end
 
 end
 %
-save('dissim_bold_hub.mat', "topology", "N_array", "num_hubs", "hub_centres", "hublength", "lambda_array", "num_samples", "bold_dissim_array");
+save('dissim_max_hub.mat', "topology", "N_array", "num_hubs", "hub_centres", "hublength", "lambda_array", "num_samples", "stim_positions", "max_dissim_array");
 % 
 
-%% BOLD dissimilarity versus level of rich-club specificity
+%% Max dissimilarity versus level of rich-club specificity
 
 clear; clc;
  
 loadparam;
-
-tol = 1e-5;
 
 % Set number of FNPs
 N_array = [10, 20, 50, 100];
 max_N = max(N_array);
 
 % Set number samples - Change to 100 for figures in paper
-num_samples = 10;
+num_samples = 200;
 
 % Set number of hubs, positions, and dimensions
 num_hubs = 4;
@@ -414,7 +420,7 @@ hublength = topology.L / sqrt(34);
 % Set lambda (level of rich-club specificity)
 lambda_array = 0.2:0.2:1;
 
-bold_dissim_array = zeros(length(lambda_array), length(N_array), num_samples);
+max_dissim_array = zeros(length(lambda_array), length(N_array), num_samples);
 
 % Sample Stimulus Position
 rng(0, "twister");
@@ -433,9 +439,12 @@ parfor k = 1:num_samples
     stim1.stimR = stim_positions(:, k);
     
     % Simulate homogeneous model
-    ts_hom_bold = run_bold(topology, homparam, hetparam_hom, stim1, tol);
+    ts_hom = run_periodic(topology, homparam, hetparam_hom, stim1);
     
-    bold_dissim_subarray = zeros(length(lambda_array), length(N_array));
+    % Initiate dissimcurve array
+    dissimcurve = zeros(1, topology.Nt);
+    
+    max_dissim_subarray = zeros(length(lambda_array), length(N_array));
     
     % Create Random Connectome
         
@@ -466,26 +475,29 @@ parfor k = 1:num_samples
             hetparam_het1.a = a_array1(:, 1:N);
             hetparam_het1.b = b_array1(:, 1:N);
     
-            ts_het_bold = run_bold(topology, homparam, hetparam_het1, stim1, tol);
+            ts_het = run_periodic(topology, homparam, hetparam_het1, stim1);
     
-            dissim_bold = pdist2(...
-                ts_hom_bold(:)', ts_het_bold(:)', 'cosine');
-        
-            bold_dissim_subarray(i, j) = dissim_bold;
-            disp(num2str([i, j, k, dissim_bold]));
+            for n = 1:topology.Nt
+                dissimcurve(n) = pdist2(...
+                    reshape(ts_hom(:, :, n), [], 1)', reshape(ts_het(:, :, n), [], 1)', 'cosine');
+            end
+    
+            dissim_max = max(dissimcurve);
+            max_dissim_subarray(i, j) = dissim_max;
+            disp(num2str([i, j, k, dissim_max]));
     
         end
     
-        bold_dissim_array(:, :, k) = bold_dissim_subarray;
+        max_dissim_array(:, :, k) = max_dissim_subarray;
     
     end
 
 end
 %
-save('dissim_bold_core.mat', "topology", "N_array", "num_hubs", "hub_centres", "hublength", "lambda_array", "num_samples", "bold_dissim_array");
+save('dissim_max_core.mat', "topology", "N_array", "num_hubs", "hub_centres", "hublength", "lambda_array", "num_samples", "stim_positions", "max_dissim_array");
 % 
 
-%% Plot mean BOLD dissimilarity versus three topological control parameters
+%% Plot max dissimilarity versus three topological control parameters
 
 clear; clc;
 loadparam;
@@ -499,23 +511,23 @@ color_array = get(gca,'colororder');
 
 
 % Load random connectome statistics
-load('dissim_bold_multilrcs.mat', 'bold_dissim_array')
-bold_dissim_array0 = bold_dissim_array;
-clear bold_dissim_array;
-bold_dissim_array0 = reshape(bold_dissim_array0, [1 size(bold_dissim_array0)]);
+load('dissim_max_multilrcs.mat', 'max_dissim_array')
+max_dissim_array0 = max_dissim_array;
+clear max_dissim_array;
+max_dissim_array0 = reshape(max_dissim_array0, [1 size(max_dissim_array0)]);
 
 t = tiledlayout(1, 28, 'TileSpacing', 'None', 'Padding', 'Compact');
 
 ax = nexttile(10*1 - 9, [1 8]); hold;
 
-load('dissim_bold_edr.mat', 'N_array', 'lambda_array', 'bold_dissim_array');
+load('dissim_max_edr.mat', 'N_array', 'lambda_array', 'max_dissim_array');
 
 % Append random to nonrandom connectome statistics [random, edr]
-bold_dissim_array = cat(1, bold_dissim_array0, bold_dissim_array);
+max_dissim_array = cat(1, max_dissim_array0, max_dissim_array);
 lambda_array = [0 lambda_array];
 
-mean_dissimilarity = squeeze(mean(bold_dissim_array, 3));
-std_dissimilarity = squeeze(std(bold_dissim_array, 1, 3));
+mean_dissimilarity = squeeze(mean(max_dissim_array, 3));
+std_dissimilarity = squeeze(std(max_dissim_array, 1, 3));
 
 set(ax,'ColorOrderIndex',1);
 for i = 1:length(N_array)
@@ -529,15 +541,15 @@ for i = 1:length(N_array)
 end
 
 xlabel('$\lambda_e$', 'Interpreter', 'latex')
-ylabel('$C_z$', 'Interpreter', 'latex', 'Rotation', 0)
+ylabel('$C_{\max}$', 'Interpreter', 'latex', 'Rotation', 0)
 ax.TickLabelInterpreter = 'latex';
 ax.XAxis.FontSize = 14;
 ax.YAxis.FontSize = 14;
 ax.XAxis.LabelFontSizeMultiplier  = 1.5;
-ax.YAxis.LabelFontSizeMultiplier  = 2;
+ax.YAxis.LabelFontSizeMultiplier  = 1.5;
 
 xlim([-0.05*max(xlim) 1.05*max(xlim)])
-yticks([0:0.02:0.1])
+yticks([0:0.1:0.4]); ylim([0 Inf]);
 xticks(lambda_array)
 
 title('\textbf{i.}', 'Interpreter', 'latex', 'FontSize', 24);
@@ -547,15 +559,15 @@ hold off;
 
 ax = nexttile(10*2 - 9, [1 8]); hold;
 
-load('dissim_bold_hub.mat', "N_array", 'lambda_array', 'bold_dissim_array');
+load('dissim_max_hub.mat', "N_array", 'lambda_array', 'max_dissim_array');
 
 
 % Append random to nonrandom connectome statistics [random, hub]
-bold_dissim_array = cat(1, bold_dissim_array0, bold_dissim_array);
+max_dissim_array = cat(1, max_dissim_array0, max_dissim_array);
 lambda_array = [0 lambda_array];
 
-mean_dissimilarity = squeeze(mean(bold_dissim_array, 3));
-std_dissimilarity = squeeze(std(bold_dissim_array, 1, 3));
+mean_dissimilarity = squeeze(mean(max_dissim_array, 3));
+std_dissimilarity = squeeze(std(max_dissim_array, 1, 3));
 
 set(ax,'ColorOrderIndex',1);
 for i = 1:length(N_array)
@@ -575,7 +587,7 @@ ax.YAxis.FontSize = 14;
 ax.XAxis.LabelFontSizeMultiplier  = 1.5;
 
 xlim([-0.05*max(xlim) 1.05*max(xlim)])
-yticks([0:0.02:0.1])
+yticks([0:0.1:0.4]); ylim([0 Inf]);
 xticks(lambda_array);
 
 title('\textbf{ii.}', 'Interpreter', 'latex', 'FontSize', 24);
@@ -585,14 +597,14 @@ hold off;
 
 ax = nexttile(10*3 - 9, [1 8]); hold;
 
-load('dissim_bold_core.mat', 'N_array', 'lambda_array', 'bold_dissim_array');
+load('dissim_max_core.mat', 'N_array', 'lambda_array', 'max_dissim_array');
 
 % Append random to nonrandom connectome statistics [random, rich-club]
-bold_dissim_array = cat(1, bold_dissim_array0, bold_dissim_array);
+max_dissim_array = cat(1, max_dissim_array0, max_dissim_array);
 lambda_array = [0 lambda_array];
 
-mean_dissimilarity = squeeze(mean(bold_dissim_array, 3));
-std_dissimilarity = squeeze(std(bold_dissim_array, 1, 3));
+mean_dissimilarity = squeeze(mean(max_dissim_array, 3));
+std_dissimilarity = squeeze(std(max_dissim_array, 1, 3));
 
 set(ax,'ColorOrderIndex',1);
 for i = 1:length(N_array)
@@ -612,7 +624,7 @@ ax.YAxis.FontSize = 14;
 ax.XAxis.LabelFontSizeMultiplier  = 1.5;
 
 xlim([-0.05*max(xlim) 1.05*max(xlim)])
-yticks([0:0.02:0.1])
+yticks([0:0.1:0.4]); ylim([0 Inf]);
 xticks(lambda_array);
 
 title('\textbf{iii.}', 'Interpreter', 'latex', 'FontSize', 24);
@@ -630,11 +642,11 @@ l = legend(Legend, 'Interpreter', 'latex', 'Box', 'off', 'FontSize', 16);
 l.Layout.Tile = 'south';
 l.Orientation = 'horizontal';
 
-% save as dissim_bold_nonrandom.tiff
-exportgraphics(gcf, '7_dissim_bold_nonrandom.tiff', 'Resolution', 300);
+% save as dissim_max_nonrandom.tiff
+exportgraphics(gcf, '7_dissim_max_nonrandom.tiff', 'Resolution', 300);
 close(fig);
 
-%% BOLD dissimilarity of sampled random, hub and rich-club connectomes
+%% Max dissimilarity of sampled random, hub and rich-club connectomes
 
 clear; clc;
 
@@ -644,9 +656,6 @@ loadparam;
 N = 100;
 num_models = 3;
 
-% Set tolerance for computing bold dissimilarity
-tol = 1e-5;
-
 % Set hubs, positions and dimensions
 num_hubs = 4;
 hub_centres = topology.L * [0.25 0.25; 0.25 0.75; 0.75 0.75; 0.75 0.25];
@@ -654,7 +663,7 @@ hublength = topology.L / sqrt(34);
 
 % Set Stimulus Positions - change num_samples_x to 40 for resolution in
 % paper
-num_samples_x = 8;
+num_samples_x = 40;
 num_samples = num_samples_x.^2;
 [stim_x, stim_y] = meshgrid(1:num_samples_x, 1:num_samples_x);
 stim_positions = (topology.L / num_samples_x)*([stim_x(:), stim_y(:)]');
@@ -664,24 +673,22 @@ lambda = 1;
 
 % Create Random, Hub and Rich club Connectomes
 
-rng(1, "twister");
-a_array = zeros(2, N);
-b_array = zeros(2, N);
-for j = 1:N
-    a = topology.L * rand(2, 1);
-    b = topology.L * rand(2, 1);
-    a_array(:, j) = a;
-    b_array(:, j) = b;
-end
 hetparam_het_array = cell(1, num_models);
 for iter = 1:num_models
+    rng(1, "twister");
+    a_array = zeros(2, N);
+    b_array = zeros(2, N);
+    for j = 1:N
+        a = topology.L * rand(2, 1);
+        b = topology.L * rand(2, 1);
+        a_array(:, j) = a;
+        b_array(:, j) = b;
+    end
     if iter == 1
         a_array1 = a_array; b_array1 = b_array;
     elseif iter == 2
-        rng(1, "twister")
         [a_array1, b_array1] = generate_connectome_hub(a_array, b_array, lambda, topology, hub_centres, hublength);
     elseif iter == 3
-        rng(1, "twister")
         [a_array1, b_array1] = generate_connectome_richclub(a_array, b_array, lambda, topology, hub_centres, hublength);       
     end
     hetparam_het1 = hetparam_het;
@@ -693,51 +700,59 @@ for iter = 1:num_models
     hetparam_het_array{iter} = hetparam_het1;
 end
 
-% Compute bold dissimilarity for all stimulus positions on grid
+% Compute max dissimilarity for all stimulus positions on grid
 
-bold_dissim_array = zeros(2 + num_models, num_samples);
+max_dissim_array = zeros(2 + num_models, num_samples);
 parfor k = 1:num_samples
 
     stim1 = stim;
     stim1.stimR = stim_positions(:, k);
 
     % Simulate homogeneous model
-    ts_hom_bold = run_bold(topology, homparam, hetparam_hom, stim1, tol);
-    bold_dissim_subarray = zeros(2 + num_models, 1);
-    bold_dissim_subarray(1:2) = stim1.stimR;
+    ts_hom = run_periodic(topology, homparam, hetparam_hom, stim1);
+
+    % Initiate dissimcurve array
+    dissimcurve = zeros(1, topology.Nt);
+
+    max_dissim_subarray = zeros(2 + num_models, 1);
+    max_dissim_subarray(1:2) = stim1.stimR;
     
     for iter = 1:num_models
         hetparam_het = hetparam_het_array{iter};
-        ts_het_bold = run_bold(topology, homparam, hetparam_het, stim1, tol);
-        bold_dissim_subarray(2 + iter) = pdist2(ts_hom_bold(:)', ts_het_bold(:)', 'cosine');
+        ts_het = run_periodic(topology, homparam, hetparam_het, stim1);
+        for n = 1:topology.Nt
+            dissimcurve(n) = pdist2(...
+                reshape(ts_hom(:, :, n), [], 1)', reshape(ts_het(:, :, n), [], 1)', 'cosine');
+        end
+        max_dissim_subarray(2 + iter) = max(dissimcurve);
         disp([k, iter]);
     end
 
-    bold_dissim_array(:, k) = bold_dissim_subarray;
+    max_dissim_array(:, k) = max_dissim_subarray;
     
 end
 %
-save('bold_dissim_randomvshubclub.mat', "topology", "num_models", "num_hubs", "hub_centres", "hublength", "hetparam_het_array", "num_samples", "num_samples_x", "bold_dissim_array");
+save('max_dissim_randomvshubclub.mat', "topology", "num_models", "num_hubs", "hub_centres", "hublength", "hetparam_het_array", "num_samples", "num_samples_x", "max_dissim_array");
 
-%% Plot spatial distribution of BOLD dissimilarity of sampled random, hub and rich-club connectomes
+%% Plot spatial distribution of max dissimilarity of sampled random, hub and rich-club connectomes
 
 clear; clc;
 loadparam;
+
+colors = [0 0 0; 1 0 0; 0 0.5 0];
 
 Colormap = [linspace(1, 0, 256)' linspace(1, 0, 256)', linspace(1, 1, 256)'];
 
 dx = topology.L / topology.Nx;
 dt = topology.T / topology.Nt;
 
-load('bold_dissim_randomvshubclub.mat');
+load('max_dissim_randomvshubclub.mat');
 
-[xq,yq] = ndgrid(dx*(1:topology.Nx));
-[stim_x, stim_y] = ndgrid(linspace(0, topology.L, num_samples_x + 1), linspace(0, topology.L, num_samples_x + 1));
-dissim0 = reshape(bold_dissim_array(3:end, :, :), [num_models, num_samples_x, num_samples_x]);
+dissim0 = reshape(max_dissim_array(3:end, :, :), [num_models, num_samples_x, num_samples_x]);
 
 % Create figure and properties
 fig = figure;
-fig.Position = [100 100 760 450];
+fig.Position = [100 100 770 450];
 num_subcols = 8;
 num_subrows = 3;
 tot_subcols = 2 + num_models*num_subcols;
@@ -764,9 +779,6 @@ text(0, 0.5, 'Connectivity', 'Interpreter', 'latex', 'FontSize', 14, 'Horizontal
 for iter = 1:num_models
     ax = nexttile(tot_subcols + 3 + (iter - 1)*(num_subcols), [num_subrows, num_subcols]);
     hold on;
-    box on;
-    ax.LineWidth = 1;
-    ax.Color = 'k';
     set(gca, 'Color', 'white');
     hetparam_het = hetparam_het_array{iter};
     % Draw hub region
@@ -795,13 +807,12 @@ end
 % Label dissimilarity for each connectivity
 ax = nexttile((num_subrows + 1)*tot_subcols + 1, [num_subrows, 2]);
 axis off;
-text(0, 0.5, ['$C_z$ by stimulus', newline, 'position'], 'Interpreter', 'latex', 'FontSize', 14, 'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', 'Rotation', 90, 'Units', 'normalized')
+text(0, 0.5, ['$C_{\max}$ by stimulus', newline, 'position'], 'Interpreter', 'latex', 'FontSize', 14, 'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', 'Rotation', 90, 'Units', 'normalized')
 
-% Plot heatmaps of BOLD dissimilarities
+% Plot heatmaps of max dissimilarities
 for iter = 1:num_models
     ax = nexttile((num_subrows + 1)*tot_subcols + 3 + (iter - 1)*(num_subcols), [num_subrows, num_subcols]);
     hold on;
-    box on;
     hetparam_het = hetparam_het_array{iter};
     dissim = squeeze(dissim0(iter, :, :));
     % Create boundary conditions, introduce data points with x = 0 OR y = 0
@@ -811,7 +822,7 @@ for iter = 1:num_models
     for m = 1:hetparam_het.m
         scatter(hetparam_het.a(1, m), hetparam_het.a(2, m), 5, 'k', 'filled');
     end
-    clim([0  max(bold_dissim_array(3:end, :, :), [], 'all')]); 
+    clim([0  0.9]); 
     shading flat; view(0, 90); colormap(Colormap)
     set(gca, 'YDir', 'normal');
     ylabel([dissimtitles(iter), '\\', '\\', '\\'], 'Interpreter', 'latex', 'FontSize', 24, 'Rotation', 0);
@@ -825,69 +836,109 @@ end
 cb = colorbar; 
 cb.FontSize = 15;
 cb.TickLabelInterpreter = 'latex';
-cb.Ticks = [0, 0.1];
-cb.TickLabels = {'0', '0.1'};
+cb.Ticks = [0, 0.9];
+cb.TickLabels = {'0', '0.9'};
+ylabel(cb, '$C_{\max}$', 'Interpreter', 'latex', 'Rotation', 0, 'Position',[2.5 0.495 0]);
 
+% Draw borders
 for iter = 1:num_models
+    ax = nexttile(tot_subcols + 3 + (iter - 1)*(num_subcols), [num_subrows, num_subcols]);
+    hold on;
+    pos = get(ax, 'Position');
+    annotation('rectangle', [pos(1), pos(2), pos(1) + pos(3) - pos(1), pos(2) + pos(4) - pos(2)], ...
+        'LineWidth', 1.5, 'Color', colors(iter, :));
     ax = nexttile((num_subrows + 1)*tot_subcols + 3 + (iter - 1)*(num_subcols), [num_subrows, num_subcols]);
     hold on;
     pos = get(ax, 'Position');
     annotation('rectangle', [pos(1), pos(2), pos(1) + pos(3) - pos(1), pos(2) + pos(4) - pos(2)], ...
-        'LineWidth', 1, 'Color', 'k');
+        'LineWidth', 1.5, 'Color', colors(iter, :));
 end
 
-% save as bold_dissim_randomvshubclub_spatialplot.svg
-exportgraphics(gcf, '7_bold_dissim_randomvshubclub_spatialplot.tiff', 'Resolution', 300);
+% save as max_dissim_randomvshubclub_spatialplot.svg
+exportgraphics(gcf, '7_max_dissim_singlerandomvshubclub_spatialplot.tiff', 'Resolution', 300);
 close(fig);
 
-%% Distribution of BOLD dissimilarity of sampled random, hub and rich-club connectomes
+%% Distribution of max dissimilarity of ensemble of random, hub (lambda_h = 1) and rich-club (lambda_r = 1) connectomes
 
 clear; clc;
 loadparam;
 
-% Load dissimilarity data - throw out stimulus positions
-load('bold_dissim_randomvshubclub.mat');
-bold_dissim_array = bold_dissim_array(3:end, :);
+num_models = 3;
+
+% Load random dissimilarity data
+load('dissim_max_multilrcs.mat');
+max_dissim_array0 = max_dissim_array(end, :);
+% Load hub and rich club dissimilarity data (lambda = 1)
+load('dissim_max_hub.mat');
+max_dissim_array = reshape(max_dissim_array(end, end, :), [1, num_samples]);
+max_dissim_array0 = cat(1, max_dissim_array0, max_dissim_array);
+load('dissim_max_core.mat');
+max_dissim_array = reshape(max_dissim_array(end, end, :), [1, num_samples]);
+max_dissim_array0 = cat(1, max_dissim_array0, max_dissim_array);
+
+max_dissim_array = max_dissim_array0; clear max_dissim_array0;
+
+% Sample Stimulus Position
+rng(0, "twister");
+stim_positions = topology.L * rand(2, num_samples);
+
+% Compute dist between stim and nearest hub
+dist_array = zeros(1, num_samples);
+dist_subarray = zeros(1, num_hubs);
+for i = 1:num_samples
+    for j = 1:num_hubs
+        distx = abs(stim_positions(1, i) - hub_centres(j, 1));
+        disty = abs(stim_positions(2, i) - hub_centres(j, 2));
+        distx = min(distx, topology.L - distx);
+        disty = min(disty, topology.L - disty);
+        dist_subarray(j) = norm([distx; disty], 2);  
+    end
+    dist_array(i) = min(dist_subarray);
+end
 
 % Create figure
-fig = figure;
-fig.Position = [100 100 600 430];
-t = tiledlayout(1, 6, 'TileSpacing', 'tight', 'Padding', 'compact');
-
-% Label plot
-ax = nexttile(1, [1 1]);
-axis off;
-text(0, 1, '\textbf{vii.}', 'Interpreter', 'latex', 'FontSize', 24, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'top', 'Units', 'normalized')
-
-% Plot distributions
-ax = nexttile(2, [1 5]);
-hold;
-colors = get(gca, 'ColorOrder');  % Retrieve the default color order
-% Draw mean of distributions
-for i = 1:num_models
-    xline(mean(bold_dissim_array(i, :)), 'Color', colors(i, :), 'LineWidth', 2);
-end
-% Plot densities
-for i = 1:num_models
-    data = bold_dissim_array(i, :);
-    [f, xi] = ksdensity(data, 'Support', 'positive');
-    fill(xi, f, colors(i, :), 'FaceAlpha', 0.2, 'EdgeColor', 'none');
-end
-
-xticks([0:0.05:0.5]); xlim([0, 0.15]);
-ylabel("Density", 'Interpreter', 'latex', 'Rotation', 90);
-xlabel('$C_z$', 'Interpreter', 'latex');
+fig = figure; hold;
+fig.Position = [100 100 550 430];
+colors = [0 0 0; 1 0 0; 0 0.5 0];
 ax = gca;
+
+% Plot dummy scatter for legend
+for i = 2:num_models
+    scatter(NaN, NaN, 5, 'filled', 'MarkerFaceColor', colors(i, :), 'MarkerEdgeColor', 'none');
+end
+
+% Plot scatter of distance and max dissimilarity
+for i = 2:num_models
+    scatter(dist_array, max_dissim_array(i, :), 5, 'filled', 'MarkerFaceColor', 0.5*([1 1 1] + colors(i, :)), 'MarkerEdgeColor', 'none', 'MarkerFaceAlpha', 0.7);
+end
+
+xlim([0 0.16]); ylim([0 0.01*ceil(max(max_dissim_array, [], 'all')/0.01)]);
+xlabel(['Distance between stimulus', newline, 'and nearest hub'], 'Interpreter', 'latex');
+ylabel('$C_{\max}$', 'Interpreter', 'latex', 'Rotation', 0);
 ax.TickLabelInterpreter = 'latex';
 ax.XAxis.FontSize = 14;
 ax.YAxis.FontSize = 14;
-ax.XAxis.LabelFontSizeMultiplier  = 2;
+ax.XAxis.LabelFontSizeMultiplier  = 1;
 ax.YAxis.LabelFontSizeMultiplier  = 1.5;
 
+% Draw mean of random connectome distribution
+yline(mean(max_dissim_array(1, :)), 'Color', colors(1, :), 'LineStyle', '--', 'LineWidth', 2, 'Label', 'Random', 'Interpreter', 'latex', 'FontSize', 12);
+
+% Compute linear fit and annotate
+for i = 2:num_models
+    coefficients = polyfit(dist_array, log(max_dissim_array(i, :)), 1);
+    plot(linspace(min(xlim), max(xlim), 100), exp(polyval(coefficients, (linspace(min(xlim), max(xlim), 100)))), 'Color', colors(i, :), 'LineStyle', '-', 'LineWidth', 2);
+end
+
+% Draw mean of distributions
+for i = 2:num_models
+    yline(mean(max_dissim_array(i, :)), 'Color', colors(i, :), 'LineStyle', '--', 'LineWidth', 1);
+end
+
 % Legend
-Legend = {"Random", "Hub ($\lambda_h = 1$)", "Rich-club ($\lambda_r = 1$)"};
+Legend = {"Hub ($\lambda_h = 1$)", "Rich-club ($\lambda_r = 1$)"};
 l = legend(Legend, 'Interpreter', 'latex', 'Box', 'off', 'FontSize', 12);
 
-% save as dissim_bold_randomhubclub_distribution.svg
-exportgraphics(gcf, '7_dissim_bold_randomhubclub_distribution.tiff', 'Resolution', 300);
+% save as max_dissim_randomvshubclub_spatialplot.tiff
+exportgraphics(gcf, '7_max_dissim_randomhubclub.tiff', 'Resolution', 300);
 close(fig);

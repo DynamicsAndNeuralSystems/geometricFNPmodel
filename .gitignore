@@ -4,3 +4,5 @@
 *.avi
 *.tiff
 *.mat
+/Experiments/temp.m
+/Presentations/

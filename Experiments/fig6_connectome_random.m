@@ -89,14 +89,14 @@ loadparam;
 N_array = [10, 20, 50, 100];
 max_N = max(N_array);
 
-num_samples = 10; % change to 100 for used in figure
+num_samples = 200; % change to 100 for used in figure
 
 % Record total length used and times to thresholds
 dissimcurve_array = zeros(topology.Nt, length(N_array), num_samples);
 
 % Sample Stimulus Position
 rng(0, "twister");
-stim_positions = topology.L * rand(2, num_samples);
+stim_positions = zeros(2, num_samples);
 
 parfor k = 1:num_samples
 
@@ -121,6 +121,7 @@ parfor k = 1:num_samples
 
     % Set Stimulus Position as source of the first FNP
     stim1.stimR = a_array(:, 1);
+    stim_positions(:, k) = stim1.stimR;
 
     % Simulate homogeneous model
     ts_hom = run_periodic(topology, homparam, hetparam_hom, stim1);
@@ -194,11 +195,11 @@ end
 h = get(gca,'Children');
 set(gca, 'Children', [h(length(N_array):-1:1); h(length(N_array)+1:length(h))]);
 
-xlim([-5, Inf]);
+xlim([-5, Inf]); ylim([-Inf, 0.65]);
 xticks([0:10:100]);
 yticks([0:0.1:1]);
 xlabel("$t \ (\mathrm{ms})$", 'Interpreter', 'latex');
-ylabel('$C_{\phi}$', 'Interpreter', 'latex', 'Rotation', 0);
+ylabel('$C(t)$', 'Interpreter', 'latex', 'Rotation', 0);
 ax.TickLabelInterpreter = 'latex';
 ax.XAxis.FontSize = 14;
 ax.YAxis.FontSize = 14;
@@ -213,7 +214,7 @@ for i = 1:num_samples*length(N_array)
     Legend{i} = "";
 end
 for i = 1:length(N_array)
-    Legend{num_samples*length(N_array) + i} = append('$N = ', num2str(N_array(i)), '$');
+    Legend{(num_samples+1)*length(N_array) - i + 1} = append('$N = ', num2str(N_array(i)), '$');
 end
 l = legend(Legend, 'Interpreter', 'latex', 'Box', 'off', 'FontSize', 16);
 l.Orientation = 'vertical';

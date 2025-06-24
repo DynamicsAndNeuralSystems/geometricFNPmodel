@@ -47,7 +47,8 @@ xlim([0, topology.L + dx]);
 ylim([0, topology.L + dx]);
 xticks([]);
 yticks([]);
-title("Connectivity", 'Interpreter', 'latex', 'FontSize', 16);
+title("Model", 'Interpreter', 'latex', 'FontSize', 16);
+text(topology.L - 0.01, 0, "$\Omega$", 'Interpreter', 'latex', 'Color', 'k', 'HorizontalAlignment','right','VerticalAlignment','bottom', 'FontSize', 15);
 hold off;
 
 % Label geometric response
@@ -138,11 +139,11 @@ num_subrows = 10;
 tot_subcols = 4 + num_subcols*2;
 tot_subrows = 2 + num_subrows*2;
 t = tiledlayout(tot_subrows, tot_subcols, "TileSpacing","tight", "Padding", "compact");
-modeltitles = "\textbf{" + ["Geometric", "Hybrid"] + "}";
+modeltitles = ["Geometric", "Hybrid"];
 stimulustitles = "\textbf{" + ["i", "ii"] + ".}";
 responsetitles = "\textbf{" + ["iii", "iv"] + ".}";
 coltitles = strings(1, 2);
-coltitles(1) = "Connectivity";
+coltitles(1) = "Model";
 coltitles(2) = append("$z(\mathbf{r})$");
 
 % Plot BOLD responses
@@ -260,15 +261,17 @@ hold;
 
 % Plot dissimilarity curve and line
 plot(1000*(dt * (1:topology.Nt) - stim.stimt), dissim_time', 'Color', 'k', 'LineWidth', 2);
+text(20, 0.04, '$C(t)$', 'Interpreter', 'latex', 'FontSize', 21, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'bottom')
+
 ylim([0, 0.09]);
 xlim([-2.5, 40]);
 xticks([0:10:40]);
 yticks([0:0.02:1]);
 xlabel("$t \ (\mathrm{ms})$", 'Interpreter', 'latex');
-ylabel('$C_\phi$', 'Interpreter', 'latex', 'Rotation', 0)
+ylabel('$C$', 'Interpreter', 'latex', 'Rotation', 0)
 dissim_max = max(dissim_time);
 yline(dissim_max, 'Label', ...
-    append('$\max C_{\phi} = ', num2str(dissim_max, "%.3f"),'$'), 'Interpreter', 'latex', 'FontSize', 21, 'Color', 'k', 'LabelVerticalAlignment', 'bottom', 'LineWidth', 1, 'LineStyle', '--');
+    append('$C_{\max} = ', num2str(dissim_max, "%.3f"),'$'), 'Interpreter', 'latex', 'FontSize', 21, 'Color', 'k', 'LabelVerticalAlignment', 'bottom', 'LineWidth', 1, 'LineStyle', '--');
 yline(dissim_bold, 'Label', ...
     append('$C_z = ', num2str(dissim_bold, "%.3f"), '$'), 'Interpreter', 'latex', 'FontSize', 21, 'Color', [0.5, 0.5, 0.5], 'LabelVerticalAlignment', 'bottom', 'LineWidth', 1);
 ax = gca;

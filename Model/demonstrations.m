@@ -62,7 +62,7 @@ loadparam;
 dx = topology.L / topology.Nx;
 dt = topology.T / topology.Nt;
 
-% Create discrete connectome of 50 FNPs for Model II
+% Create discrete connectome of 50 FNPs
 num_fnps = 50;
 rng(1, "twister");
 a_array = zeros(2, num_fnps);
@@ -74,7 +74,7 @@ for j = 1:num_fnps
     b_array(:, j) = b;    
 end
 
-% Create FNP struct for Model II
+% Create FNP struct
 hetparam_het.m = num_fnps;
 hetparam_het.c = (homparam.r)^2 * ones(1, num_fnps);
 hetparam_het.tau = zeros(1, num_fnps);

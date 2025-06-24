@@ -29,11 +29,11 @@ num_subrows = 10;
 tot_subcols = 4+num_subcols*(1+num_snapshots);
 tot_subrows = 2+num_subrows*2;
 t = tiledlayout(tot_subrows,tot_subcols,"TileSpacing", "tight", "Padding", "compact");
-modeltitles = "\textbf{" + ["Geometric", "Hybrid"] + "}";
+modeltitles = ["Geometric", "Hybrid"];
 stimulustitles = "\textbf{" + ["i", "ii"] + ".}";
 responsetitles = "\textbf{" + ["iii", "iv"] + ".}";
 coltitles = strings(1, 1+num_snapshots);
-coltitles(1) = "Connectivity";
+coltitles(1) = "Model";
 coltitles(2) = append("$\phi(\mathbf{r}, t \approx 0 \ \mathrm{ms})$");
 for i = 2:num_snapshots
     coltitles(i+1) = append("$t = ", num2str(1000*timepoints(i)), "\ \mathrm{ms}$");
@@ -175,7 +175,7 @@ xlim([-5, Inf]);
 xticks([0:10:40]);
 yticks([0:0.02:1]);
 xlabel("$t \ (\mathrm{ms})$", 'Interpreter', 'latex');
-ylabel('$C_{\phi}$', 'Interpreter', 'latex', 'Rotation', 0)
+ylabel('$C(t)$', 'Interpreter', 'latex', 'Rotation', 0)
 ax = gca;
 ax.TickLabelInterpreter = 'latex';
 ax.XAxis.FontSize = 14;
@@ -213,7 +213,7 @@ ts_het = run_periodic(topology, homparam, hetparam_het, stim);
 fig = figure;
 fig.Position = [0 100 1350 440];
 Titles = "\textbf{" + ["i", "ii"] + ".}";
-Legend = "\textbf{" + ["Geometric Connectivity \hspace{10pt}", "Hybrid Connectivity"] + "}";
+Legend = ["Geometric Model \hspace{10pt}", "Hybrid Model"];
 num_subcols = 4;
 tiledlayout(1, 2, 'TileSpacing', 'Compact', 'Padding', 'Compact');
 

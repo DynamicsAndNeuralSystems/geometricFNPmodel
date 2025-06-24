@@ -45,7 +45,7 @@ end
 %
 save('dissim_stimposition.mat', "topology", "num_samples", "stim_array", "dissim_time_array", "dissim_bold_array");
 
-%% F. Plot dissimilarity of default model over time, optimal and nonoptimal stimulus
+%% Plot dissimilarity of default model over time, optimal and nonoptimal stimulus
 
 clear; clc;
 loadparam;
@@ -93,7 +93,7 @@ ylim([-0.0005, 0.09]);
 xticks([0:10:40]);
 yticks([0:0.02:0.1]);
 xlabel("$t \ (\mathrm{ms})$", 'Interpreter', 'latex');
-ylabel('$C_{\phi}$', 'Interpreter', 'latex', 'Rotation', 0);
+ylabel('$C(t)$', 'Interpreter', 'latex', 'Rotation', 0);
 ax = gca;
 ax.TickLabelInterpreter = 'latex';
 ax.XAxis.FontSize = 14;
@@ -161,7 +161,7 @@ for i = 1:2
     end
     xlabel("$\|\mathbf{r}_0 - \mathbf{p}\| \ (\mathrm{m})$", 'Interpreter', 'latex');
     if i == 1
-        ylabel('$\max_t \{ C_{\phi}(t) \}$', 'Interpreter', 'latex', 'Rotation', 0);
+        ylabel('$C_{\max}$', 'Interpreter', 'latex', 'Rotation', 0);
     else
         ylabel('$ C_z $', 'Interpreter', 'latex', 'Rotation', 0);
     end
@@ -258,6 +258,595 @@ end
 exportgraphics(gcf, 'S2_scfvssigma_n_geometric.tiff', 'Resolution', 300);
 close(fig);
 
+%% Compute correlation structure of geometric model
+
+clear; clc;
+
+loadparam;
+
+dx = topology.L / topology.Nx;
+dt = topology.T / topology.Nt;
+
+tol = 1e-7;
+
+num_parcel_x = 10;
+
+% Set seed for generating noisy input
+rng(0, "twister");
+corr_array = compute_spont_corr(topology, dx, dt, hetparam_hom, homparam, num_parcel_x, tol);
+
+save('corr_parcel_geometric.mat', 'num_parcel_x', 'corr_array', 'topology')
+
+%% Compute correlation structure of random connectome
+% N = 100
+
+clear; clc;
+
+loadparam;
+
+dx = topology.L / topology.Nx;
+dt = topology.T / topology.Nt;
+
+tol = 1e-7;
+
+load('corr_parcel_geometric.mat', 'num_parcel_x');
+
+% Set number of FNPs
+N_array = [100];
+max_N = max(N_array);
+
+% Create Random Connectome
+rng(0, "twister");
+a_array = zeros(2, max_N);
+b_array = zeros(2, max_N);
+for j = 1:max_N
+    a = topology.L * rand(2, 1);
+    b = topology.L * rand(2, 1);
+    a_array(:, j) = a;
+    b_array(:, j) = b;
+end
+
+% Compute BOLD dissimilarity
+
+N = N_array(1);
+
+hetparam_het.m = N;
+hetparam_het.c = (homparam.r)^2 * ones(1, N);
+hetparam_het.tau = zeros(1, N);
+hetparam_het.a = a_array(:, 1:N);
+hetparam_het.b = b_array(:, 1:N);
+
+corr_array = compute_spont_corr(topology, dx, dt, hetparam_het, homparam, num_parcel_x, tol);
+
+
+save('corr_parcel_hybrid.mat', 'num_parcel_x', 'hetparam_het', 'corr_array', 'topology')
+
+%% Plot SCF of geometric and sample hybrid model with random connectome
+% At parcel (5, 5)
+
+clear; clc;
+loadparam;
+
+dx = topology.L / topology.Nx;
+dt = topology.T / topology.Nt;
+
+num_models = 2;
+
+% Set reference point
+ref_pt = [5, 5];
+
+load('corr_parcel_geometric.mat');
+corr_array_hom = corr_array;
+load('corr_parcel_hybrid.mat', 'corr_array', 'hetparam_het');
+corr_array = cat(5, corr_array_hom, corr_array);
+for k = 1:num_models
+    for i = 1:num_parcel_x
+        for j = 1:num_parcel_x
+            for i1 = 1:num_parcel_x
+                for j1 = 1:num_parcel_x
+                    if isnan(corr_array(i, j, i1, j1, k)) && ~isnan(corr_array(i1, j1, i, j, k))
+                        corr_array(i, j, i1, j1, k) = corr_array(i1, j1, i, j, k);
+                    elseif ~isnan(corr_array(i, j, i1, j1, k)) && isnan(corr_array(i1, j1, i, j, k))
+                        corr_array(i1, j1, i, j, k) = corr_array(i, j, i1, j1, k);
+                    elseif isnan(corr_array(i, j, i1, j1, k)) && isnan(corr_array(i1, j1, i, j, k))
+                        corr_array(i, j, i1, j1, k) = Inf;
+                    end
+                end
+            end
+        end
+    end
+end
+corr_array = squeeze(corr_array(ref_pt(1), ref_pt(2), :, :, :));
+
+hetparam_het_array = {hetparam_hom, hetparam_het};
+
+% Create figure and properties
+fig = figure;
+fig.Position = [100 100 520 450];
+num_subcols = 8;
+num_subrows = 3;
+tot_subcols = 2 + num_models*num_subcols;
+tot_subrows = 1 + 2*num_subrows;
+t = tiledlayout(tot_subrows, tot_subcols, 'TileSpacing', 'tight', 'Padding', 'compact');
+modeltitles = ["Geometric", "Hybrid"];
+connectivitytitles = "\textbf{" + ["i", "ii"] + ".}";
+dissimtitles = "\textbf{" + ["iii", "iv"] + ".}";
+
+% Title connectivites
+for iter = 1:num_models
+    ax = nexttile(3 + (iter - 1)*(num_subcols), [1, num_subcols]);
+    hold on;
+    axis off;
+    text(0.5, 0, modeltitles(iter), 'Interpreter', 'latex', 'FontSize', 16, 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', 'Units', 'normalized');
+    hold off;
+end
+
+ax = nexttile(tot_subcols + 1, [num_subrows, 2]);
+axis off;
+text(0.5, 0.5, 'Connectivity', 'Interpreter', 'latex', 'FontSize', 14, 'HorizontalAlignment', 'center', 'VerticalAlignment', 'baseline', 'Rotation', 90, 'Units', 'normalized')
+
+% Draw connectivities
+for iter = 1:num_models
+    ax = nexttile(tot_subcols + 3 + (iter - 1)*(num_subcols), [num_subrows, num_subcols]);
+    hold on;
+    box on;
+    ax.LineWidth = 1;
+    ax.Color = 'k';
+    set(gca, 'Color', 'white');
+    hetparam_het = hetparam_het_array{iter};
+    for m = 1:hetparam_het.m
+        q = quiver(hetparam_het.a(1, m), hetparam_het.a(2, m), ...
+        hetparam_het.b(1, m) - hetparam_het.a(1, m), ...
+        hetparam_het.b(2, m) - hetparam_het.a(2, m),...
+        'Color', 'k', 'LineWidth', 0.1, ...
+        'MaxHeadSize', 0.05 / norm(hetparam_het.a(:, m) - hetparam_het.b(:, m)), ...
+        'Marker', '.', 'MarkerSize', 0.0001, ...
+        'AutoScale','off');
+    end
+    if iter == 1
+        text(topology.L - 0.01, 0, "$\Omega$", 'Interpreter', 'latex', 'Color', 'k', 'HorizontalAlignment','right','VerticalAlignment','bottom', 'FontSize', 15);
+    end
+    ylabel([connectivitytitles(iter), '\\', '\\', '\\'], 'Interpreter', 'latex', 'FontSize', 24, 'Rotation', 0);
+    xlim([0, topology.L + dx]);
+    ylim([0, topology.L + dx]);
+    xticks([]);
+    yticks([]);
+    hold off;
+end
+
+% Label dissimilarity for each connectivity
+ax = nexttile((num_subrows + 1)*tot_subcols + 1, [num_subrows, 2]);
+axis off;
+text(0.5, 0.5, ['$\gamma$ with reference', newline, 'parcel $\Omega_{', num2str(ref_pt(1)),',', num2str(ref_pt(2)),'}$'], 'Interpreter', 'latex', 'FontSize', 14, 'HorizontalAlignment', 'center', 'VerticalAlignment', 'baseline', 'Rotation', 90, 'Units', 'normalized')
+
+% Plot heatmaps of max dissimilarities
+for iter = 1:num_models
+    ax = nexttile((num_subrows + 1)*tot_subcols + 3 + (iter - 1)*(num_subcols), [num_subrows, num_subcols]);
+    hold on;
+    box on;
+    ax.LineWidth = 1;
+    ax.Color = 'k';
+    set(gca, 'Color', 'white');
+    hetparam_het = hetparam_het_array{iter};
+    imagesc((topology.L / num_parcel_x)*(-0.5 + 1:num_parcel_x),(topology.L / num_parcel_x)*(-0.5 + 1:num_parcel_x),squeeze(corr_array(:, :, iter))); 
+    clim([0  1]); 
+    shading flat; view(0, 90); 
+    colormap(flipud(pink));
+    set(gca, 'YDir', 'normal');
+    ylabel([dissimtitles(iter), '\\', '\\', '\\'], 'Interpreter', 'latex', 'FontSize', 24, 'Rotation', 0);
+    xlim([-dx, topology.L + dx]);
+    ylim([-dx, topology.L + dx]);
+    xticks([]);
+    yticks([]);
+    hold off;
+end
+
+cb = colorbar; 
+cb.FontSize = 15;
+cb.TickLabelInterpreter = 'latex';
+cb.Ticks = [0, 1];
+cb.TickLabels = {'0', '1'};
+
+% save as scf_random.svg
+exportgraphics(gcf, 'S3_scf_random.tiff', 'Resolution', 300);
+close(fig);
+
+%% Plot SCF of geometric and sample hybrid model with random connectome
+% At parcel (5, 5)
+
+clear; clc;
+loadparam;
+
+dx = topology.L / topology.Nx;
+dt = topology.T / topology.Nt;
+
+num_models = 2;
+
+% Set reference point
+ref_pt = [5, 5];
+
+load('corr_parcel_geometric.mat');
+corr_array_hom = corr_array;
+load('corr_parcel_hybrid.mat', 'corr_array', 'hetparam_het');
+corr_array = cat(5, corr_array_hom, corr_array);
+
+
+% Create figure and properties
+fig = figure;
+hold;
+fig.Position = [100 100 400 450];
+ax = gca;
+
+vec1 = reshape(corr_array(:, :, :, :, 1), [], 1);
+vec2 = reshape(corr_array(:, :, :, :, 2), [], 1);
+vec1 = vec1(~isnan(vec1)); vec2 = vec2(~isnan(vec2));
+xlim([floor(min(vec1, [], 'all')/0.1) ceil(max(vec1, [], 'all')/0.1)] * 0.1);
+ylim([floor(min(vec2, [], 'all')/0.1) ceil(max(vec2, [], 'all')/0.1)] * 0.1);
+% Compute correlation between SCF's and annotate
+corr = 1 - pdist2(vec1', vec2', 'correlation');
+text(max(xlim), min(ylim), append("r = $",num2str(corr, 2), "$"), 'Interpreter', 'latex', 'FontSize', 16, 'Color', 'k', 'HorizontalAlignment', 'right', 'VerticalAlignment', 'bottom');
+% Compute linear fit and annotate
+coefficients = polyfit(vec1, vec2, 1);
+plot(xlim, polyval(coefficients, xlim), 'Color', [0.6, 0.6, 0.6], 'LineStyle', '--', 'LineWidth', 1);
+% Plot SCF points on top of linear fit
+scatter(vec1, vec2, 2, 'black', 'filled');
+ax.TickLabelInterpreter = 'latex';
+xlabel('$\gamma^\mathrm{geo}$', 'Interpreter', 'latex', 'FontSize', 15);
+ylabel('$\gamma^\mathrm{hyb}$', 'Interpreter', 'latex', 'FontSize', 15);
+ax.XAxis.FontSize = 10;
+ax.YAxis.FontSize = 10;
+ax.LabelFontSizeMultiplier  = 1.5;
+ax.TitleHorizontalAlignment = 'left';
+hold off;
+
+% save as corr_scatter_random.svg
+exportgraphics(gcf, 'S3_corr_scatter_random.tiff', 'Resolution', 300);
+close(fig);
+
+
+%% Compute corr dissimilarity of random connectome
+% N = 100
+
+clear; clc;
+
+loadparam;
+
+dx = topology.L / topology.Nx;
+dt = topology.T / topology.Nt;
+
+tol = 1e-5;
+
+load('corr_parcel_geometric.mat', 'num_parcel_x', 'corr_array');
+corr_array_hom = corr_array; clear corr_array;
+
+% Set number of FNPs
+N_array = [100];
+max_N = max(N_array);
+
+% Set number samples - Change for 100 for figures in paper
+num_samples = 20;
+
+% Record BOLD dissimilarity
+corr_dissim_array = zeros(length(N_array), num_samples);
+
+parfor k = 1:num_samples
+
+    % Create duplicates for parallelization
+    hetparam_het1 = hetparam_het;
+
+    corr_dissim_subarray = zeros(length(N_array), 1);
+
+    % Create Random Connectome
+    rng(k, "twister");
+    a_array = zeros(2, max_N);
+    b_array = zeros(2, max_N);
+    for j = 1:max_N
+        a = topology.L * rand(2, 1);
+        b = topology.L * rand(2, 1);
+        a_array(:, j) = a;
+        b_array(:, j) = b;
+    end
+
+    % Compute BOLD dissimilarity for each N
+    for i = 1:length(N_array)
+
+        N = N_array(i);
+
+        hetparam_het1.m = N;
+        hetparam_het1.c = (homparam.r)^2 * ones(1, N);
+        hetparam_het1.tau = zeros(1, N);
+        hetparam_het1.a = a_array(:, 1:N);
+        hetparam_het1.b = b_array(:, 1:N);
+
+        corr_array = compute_spont_corr(topology, dx, dt, hetparam_het1, homparam, num_parcel_x, tol);
+
+        vec1 = corr_array_hom(:);
+        vec1 = vec1(~isnan(vec1));
+        vec2 = corr_array(:);
+        vec2 = vec2(~isnan(vec2));
+        dissim_corr = pdist2(vec1', vec2', 'correlation');
+        vec1 = 0; vec2 = 0;
+
+        corr_dissim_subarray(i) = dissim_corr;
+        disp([i, k, dissim_corr]);
+
+    end
+
+    corr_dissim_array(:, k) = corr_dissim_subarray;
+
+end
+
+save('dissim_corr_multilrcs.mat', "topology", "N_array", "num_samples", "corr_dissim_array");
+
+
+%% Compute corr dissimilarity versus level of hub specificity
+% N = 100
+
+clear; clc;
+ 
+loadparam;
+
+dx = topology.L / topology.Nx;
+dt = topology.T / topology.Nt;
+
+tol = 1e-5;
+
+load('corr_parcel_geometric.mat', 'num_parcel_x', 'corr_array');
+corr_array_hom = corr_array; clear corr_array;
+
+% Set number of FNPs
+N_array = [100];
+max_N = max(N_array);
+
+% Set number samples - Change to 100 for figures in paper
+num_samples = 20;
+
+% Set number of hubs, positions, and dimensions
+num_hubs = 4;
+hub_centres = topology.L * [0.25 0.25; 0.25 0.75; 0.75 0.75; 0.75 0.25];
+hublength = topology.L / sqrt(34);
+
+% Set lambda (level of hub specificity)
+lambda_array = 0.2:0.2:1;
+
+corr_dissim_array = zeros(length(lambda_array), length(N_array), num_samples);
+
+parfor k = 1:num_samples
+
+    % Set seed for worker
+    rng(k, "twister");
+
+    % Create duplicates for parallelization
+    hetparam_het1 = hetparam_het;
+
+    corr_dissim_subarray = zeros(length(lambda_array), length(N_array));
+
+    % Create Random Connectome
+      
+    a_array = zeros(2, max_N);
+    b_array = zeros(2, max_N);
+    
+    for j = 1:max_N
+        a = topology.L * rand(2, 1);
+        b = topology.L * rand(2, 1);
+        a_array(:, j) = a;
+        b_array(:, j) = b;
+    end
+    
+    % Create Nonrandom connectome for each lambda
+    for i = 1:length(lambda_array)       
+        
+        lambda = lambda_array(i);
+        [a_array1, b_array1] = generate_connectome_hub(a_array, b_array, lambda, topology, hub_centres, hublength);
+
+        % Compute BOLD dissimilarity for each N
+        for j = 1:length(N_array)
+    
+            N = N_array(j);
+    
+            hetparam_het1.m = N;
+            hetparam_het1.c = (homparam.r)^2 * ones(1, N);
+            hetparam_het1.tau = zeros(1, N);
+            hetparam_het1.a = a_array1(:, 1:N);
+            hetparam_het1.b = b_array1(:, 1:N);
+    
+            corr_array = compute_spont_corr(topology, dx, dt, hetparam_het1, homparam, num_parcel_x, tol);
+    
+            vec1 = corr_array_hom(:);
+            vec1 = vec1(~isnan(vec1));
+            vec2 = corr_array(:);
+            vec2 = vec2(~isnan(vec2));
+            dissim_corr = pdist2(vec1', vec2', 'correlation');
+            vec1 = 0; vec2 = 0;
+        
+            corr_dissim_subarray(i, j) = dissim_corr;
+            disp(num2str([i, j, k, dissim_corr]));
+    
+        end
+    
+        corr_dissim_array(:, :, k) = corr_dissim_subarray;
+    
+    end
+
+end
+%
+save('dissim_corr_hub.mat', "topology", "N_array", "num_hubs", "hub_centres", "hublength", "lambda_array", "num_samples", "corr_dissim_array");
+% 
+
+%% Compute corr dissimilarity versus level of rich-club specificity
+% N = 100
+
+clear; clc;
+ 
+loadparam;
+
+dx = topology.L / topology.Nx;
+dt = topology.T / topology.Nt;
+
+tol = 1e-5;
+
+load('corr_parcel_geometric.mat', 'num_parcel_x', 'corr_array');
+corr_array_hom = corr_array; clear corr_array;
+
+% Set number of FNPs
+N_array = [100];
+max_N = max(N_array);
+
+% Set number samples - Change to 100 for figures in paper
+num_samples = 20;
+
+% Set number of hubs, positions, and dimensions
+num_hubs = 4;
+hub_centres = topology.L * [0.25 0.25; 0.25 0.75; 0.75 0.75; 0.75 0.25];
+hublength = topology.L / sqrt(34);
+
+% Set lambda (level of hub specificity)
+lambda_array = 0.2:0.2:1;
+
+corr_dissim_array = zeros(length(lambda_array), length(N_array), num_samples);
+
+parfor k = 1:num_samples
+
+    % Set seed for worker
+    rng(k, "twister");
+
+    % Create duplicates for parallelization
+    hetparam_het1 = hetparam_het;
+
+    corr_dissim_subarray = zeros(length(lambda_array), length(N_array));
+
+    % Create Random Connectome
+      
+    a_array = zeros(2, max_N);
+    b_array = zeros(2, max_N);
+    
+    for j = 1:max_N
+        a = topology.L * rand(2, 1);
+        b = topology.L * rand(2, 1);
+        a_array(:, j) = a;
+        b_array(:, j) = b;
+    end
+    
+    % Create Nonrandom connectome for each lambda
+    for i = 1:length(lambda_array)       
+        
+        lambda = lambda_array(i);
+        [a_array1, b_array1] = generate_connectome_richclub(a_array, b_array, lambda, topology, hub_centres, hublength);
+
+        % Compute BOLD dissimilarity for each N
+        for j = 1:length(N_array)
+    
+            N = N_array(j);
+    
+            hetparam_het1.m = N;
+            hetparam_het1.c = (homparam.r)^2 * ones(1, N);
+            hetparam_het1.tau = zeros(1, N);
+            hetparam_het1.a = a_array1(:, 1:N);
+            hetparam_het1.b = b_array1(:, 1:N);
+    
+            corr_array = compute_spont_corr(topology, dx, dt, hetparam_het1, homparam, num_parcel_x, tol);
+    
+            vec1 = corr_array_hom(:);
+            vec1 = vec1(~isnan(vec1));
+            vec2 = corr_array(:);
+            vec2 = vec2(~isnan(vec2));
+            dissim_corr = pdist2(vec1', vec2', 'correlation');
+            vec1 = 0; vec2 = 0;
+        
+            corr_dissim_subarray(i, j) = dissim_corr;
+            disp(num2str([i, j, k, dissim_corr]));
+    
+        end
+    
+        corr_dissim_array(:, :, k) = corr_dissim_subarray;
+    
+    end
+
+end
+%
+save('dissim_corr_core.mat', "topology", "N_array", "num_hubs", "hub_centres", "hublength", "lambda_array", "num_samples", "corr_dissim_array");
+% 
+
+
+%% Plot corr dissimilarity versus hub and rich-club specificity
+
+clear; clc;
+loadparam;
+
+fig = figure;
+fig.Position = [100, 100, 500, 450];
+hold;
+colors = [1 0 0; 0 0.5 0];
+ax = gca;
+
+
+% Load random connectome statistics
+load('dissim_corr_multilrcs.mat', 'corr_dissim_array')
+corr_dissim_array0 = squeeze(corr_dissim_array);
+clear corr_dissim_array;
+
+load('dissim_corr_hub.mat', "N_array", 'lambda_array', 'corr_dissim_array');
+
+
+% Append random to nonrandom connectome statistics [random, hub]
+corr_dissim_array = cat(1, corr_dissim_array0, squeeze(corr_dissim_array));
+lambda_array = [0 lambda_array];
+
+mean_dissimilarity = squeeze(mean(corr_dissim_array, 2));
+std_dissimilarity = squeeze(std(corr_dissim_array, 1, 2));
+
+for i = 1:length(N_array)
+    h = errorbar(lambda_array, mean_dissimilarity(:, i), std_dissimilarity(:, i), 'o', 'MarkerSize', 0.000001, 'LineWidth', 1, 'Color', colors(1, :));
+    alpha = 0.2;   
+    % Set transparency (undocumented)
+    set([h.Bar, h.Line], 'ColorType', 'truecoloralpha', 'ColorData', [h.Line.ColorData(1:3); 255*alpha])
+end
+for i = 1:length(N_array)
+    plot(lambda_array, mean_dissimilarity(:, i), 'Marker', 'o', 'Color', colors(1, :), 'MarkerFaceColor', colors(1, :));
+end
+
+load('dissim_corr_core.mat', 'N_array', 'lambda_array', 'corr_dissim_array');
+
+% Append random to nonrandom connectome statistics [random, rich-club]
+corr_dissim_array = cat(1, corr_dissim_array0, squeeze(corr_dissim_array));
+lambda_array = [0 lambda_array];
+
+mean_dissimilarity = squeeze(mean(corr_dissim_array, 2));
+std_dissimilarity = squeeze(std(corr_dissim_array, 1, 2));
+
+for i = 1:length(N_array)
+    h = errorbar(lambda_array, mean_dissimilarity(:, i), std_dissimilarity(:, i), 'o', 'MarkerSize', 0.000001, 'LineWidth', 1, 'Color', colors(2, :));
+    alpha = 0.2;   
+    % Set transparency (undocumented)
+    set([h.Bar, h.Line], 'ColorType', 'truecoloralpha', 'ColorData', [h.Line.ColorData(1:3); 255*alpha])
+end
+for i = 1:length(N_array)
+    plot(lambda_array, mean_dissimilarity(:, i), 'Marker', 'o', 'Color', colors(2, :), 'MarkerFaceColor', colors(2, :));
+end
+
+xlabel('$\lambda$', 'Interpreter', 'latex');
+ylabel('$1 - \mathrm{r}$', 'Interpreter', 'latex', 'Rotation', 0);
+ax.TickLabelInterpreter = 'latex';
+ax.XAxis.FontSize = 14;
+ax.YAxis.FontSize = 14;
+ax.XAxis.LabelFontSizeMultiplier  = 1.5;
+
+xlim([-0.05*max(xlim) 1.05*max(xlim)])
+yticks([0:0.1:0.6]); ylim([0.15 0.55]);
+xticks(lambda_array);
+
+hold off;
+
+Legend = {"", "Hub Specificity ($\lambda_h$)", "", "Rich-club Specificity ($\lambda_r$)"};
+
+l = legend(Legend, 'Interpreter', 'latex', 'Box', 'off', 'FontSize', 16, 'Location', 'southeast');
+l.Orientation = 'vertical';
+
+% save as dissim_max_nonrandom.tiff
+exportgraphics(gcf, 'S3_dissim_corr_nonrandom.tiff', 'Resolution', 300);
+close(fig);
+
+
 %% Generate 1d schematic for derivation
 
 clear; clc;
@@ -283,13 +872,9 @@ end
 plot(cos(theta_array), sin(theta_array), 'Marker', 'o', 'MarkerSize', 4, 'Color', 'blue', 'MarkerFaceColor', 'blue', 'MarkerEdgeColor', 'blue', 'LineWidth', 2);
 plot(1.05*cos(theta_array), 1.05*sin(theta_array), 'Marker', 'o', 'MarkerSize', 2, 'Color', 'red', 'MarkerFaceColor', 'red', 'MarkerEdgeColor', 'red', 'LineWidth', 1);
 
-% plot(0.95*cos(2*pi/3), 0.95*sin(2*pi/3), 'Marker', 'o', 'Color', [0 0.5 0], 'MarkerSize', 3, 'Color', [0 0.5 0], 'MarkerFaceColor', [0 0.5 0]);
-% plot(0.9*cos(pi/3), 0.9*sin(pi/3), 'Marker', 'o', 'Color', [0 0.5 0], 'MarkerSize', 3, 'Color', [0 0.5 0], 'MarkerFaceColor', [0 0.5 0]);
-
-%scatter(1.05*cos(theta_array), 1.05*sin(theta_array), 10, 'red', 'o', 'filled');
 xlim([-1 1]); ylim([0.7 Inf]);
 xticks([]); yticks([]);
 
 % export as physiologicalschematic.tiff
-exportgraphics(gcf, 'S3_physiologicalschematic.tiff', 'Resolution', 300);
+exportgraphics(gcf, 'S4_physiologicalschematic.tiff', 'Resolution', 300);
 close(fig);

@@ -45,11 +45,11 @@ num_subrows = 10;
 tot_subcols = 4+num_subcols*(1+num_snapshots);
 tot_subrows = 2+num_subrows*2;
 t = tiledlayout(tot_subrows,tot_subcols,"TileSpacing", "tight", "Padding", "compact");
-modeltitles = "\textbf{" + ["Geometric", "Hybrid"] + "}";
+modeltitles = ["Geometric", "Hybrid"];
 stimulustitles = "\textbf{" + ["i", "ii"] + ".}";
 responsetitles = "\textbf{" + ["iii", "iv"] + ".}";
 coltitles = strings(1, 1+num_snapshots);
-coltitles(1) = "Connectivity";
+coltitles(1) = "Model";
 coltitles(2) = append("$\phi(\mathbf{r}, t = ", num2str(1000*timepoints(1)), "\ \mathrm{ms})$");
 for i = 2:num_snapshots
     coltitles(i+1) = append("$t = ", num2str(1000*timepoints(i)), "\ \mathrm{ms}$");

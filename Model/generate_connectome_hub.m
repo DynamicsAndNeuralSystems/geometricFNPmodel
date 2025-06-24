@@ -35,10 +35,10 @@ function [a_array1, b_array1] = generate_connectome_hub(a_array,b_array, lambda,
                     disty = abs(b(2) - hub_centres(iter0, 2));
                     dist_b(iter0) = norm([distx; disty], Inf);
                 end
-                % Rejection 1: a and b are both inside a hub
-                test1 = any(dist_a <= hublength/2) & any(dist_b <= hublength/2);
-                % Rejection 2: a and b are both outside a hub
-                test2 = all(dist_a > hublength/2) & all(dist_b > hublength/2);
+                % Rejection 1: a and b are both outside a hub
+                test1 = all(dist_a > hublength/2) & all(dist_b > hublength/2);
+                % Rejection 2: a and b are both inside the same hub
+                test2 = any(dist_a <= hublength/2 & dist_b <= hublength/2);
                 if test1 || test2
                     test = 0;
                     a = topology.L * rand(2, 1);
